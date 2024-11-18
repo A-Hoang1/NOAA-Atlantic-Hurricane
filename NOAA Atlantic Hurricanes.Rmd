@@ -7,20 +7,30 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-hurricanes <- read.csv("storms.csv")
+
+# loading packages needed
+pacman::p_load(tidyverse, skimr, broom, GGally, lubridate)
+
+# Changing the default theme
+theme_set(theme_bw())
+
+# read in the data set
+hurricanes <- read.csv("storms.csv") 
+hurricanes <- hurricanes |>
+  mutate(
+    date = as.POSIXct(paste(month, day, year, hour), format = "%m %d %Y %H"),
+    )
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r exploratory data analysis}
+summary(hurricanes)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+# View the first few rows of the long-format data
+head(hurricanes_long)
 ```
 
-## Including Plots
+## IncludingPlots
 
 You can also embed plots, for example:
 
