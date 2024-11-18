@@ -26,8 +26,10 @@ hurricanes <- hurricanes |>
 ```{r exploratory data analysis}
 summary(hurricanes)
 
-# View the first few rows of the long-format data
-head(hurricanes_long)
+
+hurricanes |>
+  dplyr::select(-name, -year, -month, -day, -hour, -category, -status, -date) |>
+  ggpairs()
 ```
 
 ## IncludingPlots
