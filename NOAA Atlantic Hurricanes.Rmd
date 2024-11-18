@@ -30,8 +30,56 @@ summary(hurricanes)
 hurricanes |>
   dplyr::select(-name, -year, -month, -day, -hour, -category, -status, -date) |>
   ggpairs()
-```
 
+```
+```{r exploratory data analysis}
+hurricanes |> 
+  pivot_longer(
+    cols = c(lat, long, tropicalstorm_force_diameter, hurricane_force_diameter),
+    names_to = "variable",
+    values_to = "value"
+  ) |> 
+  
+  # Setting the order of the levels of assessment to the column order in grades
+  mutate(variable = as_factor(variable)) |> 
+  
+  # Creating a scatterplot for grades and the other 8 predictors
+  ggplot(
+    mapping = aes(
+      x = value,
+      y = wind
+    )
+  ) + 
+  
+  geom_point() +
+  
+  geom_smooth(
+    method = "loess",
+    formula = y~x,
+    se = F
+  ) +
+  
+  facet_wrap(
+    facets = ~ variable,
+    scales = "free_x",
+    nrow = 2
+  ) 
+  
+```
+```{r exploratory data analysis}
+hurricanes |>
+  dplyr::select(where(is.numeric)) %>%  # Select only numeric columns
+  ggcorr(
+    low = "red3",         
+    mid = "white",         
+    high = "blue3",        
+    label = TRUE,          
+    label_round = 2,      
+    angle = -45,          
+    hjust = 1           
+  )
+
+```
 ## IncludingPlots
 
 You can also embed plots, for example:
