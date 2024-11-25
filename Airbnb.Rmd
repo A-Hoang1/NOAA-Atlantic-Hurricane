@@ -36,7 +36,7 @@ listings <- read.csv("listings.csv")
 listings_clean <- 
   listings |> 
   # Selects the columns that we are interested in exploring
-  dplyr::select(price, room_type:beds) |> 
+  dplyr::select(price, room_type:beds) |>
   
   # Removes listings without a price
   filter(!is.na(price))
@@ -312,6 +312,7 @@ Accommodates, seems to have a nonlinear relationship with price, where prices in
 # Machine Learning Techniques
 Lets start by constructing some Linear Models to determine price.
 ```{r}
+listings_clean3 <- listings_clean3 |> drop_na()
 # Simple model predicting price based on accommodates only
 price_lm1 <- lm(
   formula = price ~ accommodates,
@@ -456,81 +457,40 @@ head(price_pred)
 # KNN regression
 price_knn <- 
   knn.reg(
-    train = listings_clean3 |> select(-price),  # Training predictors
-    test = listings_clean3 |> select(-price),    # Testing predictors
-    y = listings_clean3$price,                  # Training response variable
+    train = listings_norm[ , -1],  # Training predictors
+    test = listings_norm |> select(-price),    # Testing predictors
+    y = listings_norm$price,                  # Training response variable
     k = 5                                      # Number of neighbors
   )
-
-# Create a data frame with predictions, actual prices, and residuals
+# knn.reg will return a vector with the average income of the 5 nearest neighbors by using $pred
 price_df <- 
   tibble(
-    actual_price = listings_clean3$price,
-    predicted_price = price_knn$pred,
-    residuals = actual_price - predicted_price
-  )
+    y = listings_norm$price,
+    y_hat = price_knn$pred,
+    residuals = y - y_hat
+  ) 
+
+
+price_df
 
 # Display the results
 head(price_df)
 
 ```
-The KNN model with k=5k=5 provides close predictions for most listings, though it maybe a little overfitted as we are using the same data for testing and training. We can see by small residuals like -0.2 and 0.0 for actual prices of 399 and 49 predicted respectively well. However, larger residuals, such as -27.4 for an actual price of 110, indicate that the model struggles with certain listings, likely due to outliers. Overall, the model captures general pricing trends but could benefit from further tunings of k. 
+The KNN model with k=5 provides close predictions for most listings, though it maybe a little overfitted as we are using the same data for testing and training. We can see by small residuals like -0.2 and 0.0 for actual prices of 399 and 49 predicted respectively well. However, larger residuals, such as -3.6 for an actual price of 110, indicate that the model struggles with certain listings, likely due to outliers. Overall, the model captures general pricing trends but could benefit from further tunings of k. 
 
 ```{r}
-# Functions for sigma and MAE
-calc_sigma <- function(actual, predicted) {
-  sigma <- sqrt(mean((actual - predicted)^2))
-  return(sigma)
-}
-
-calc_mae <- function(actual, predicted) {
-  mae <- mean(abs(actual - predicted))
-  return(mae)
-}
-
-# Create the data frame and calculate R2, sigma, and MAE
-price_df <- data.frame(
-  model = c("price_lm7", "price_lm6","price_lm5", "price_lm4", "price_lm3", "price_lm2", "price_lm1"),
-  
-  # R-squared values
-  r_squared = c(
-    cor(listings_clean3$price, price_pred$price7)^2,
-    cor(listings_clean3$price, price_pred$price6)^2,
-    cor(listings_clean3$price, price_pred$price5)^2,
-    cor(listings_clean3$price, price_pred$price4)^2,
-    cor(listings_clean3$price, price_pred$price3)^2,
-    cor(listings_clean3$price, price_pred$price2)^2,
-    cor(listings_clean3$price, price_pred$price1)^2
-  ),
-  
-  # Sigma values
-  sigma = c(
-    calc_sigma(listings_clean3$price, price_pred$price7),
-    calc_sigma(listings_clean3$price, price_pred$price6),
-    calc_sigma(listings_clean3$price, price_pred$price5),
-    calc_sigma(listings_clean3$price, price_pred$price4),
-    calc_sigma(listings_clean3$price, price_pred$price3),
-    calc_sigma(listings_clean3$price, price_pred$price2),
-    calc_sigma(listings_clean3$price, price_pred$price1)
-  ),
-  
-  # MAE values
-  mae = c(
-    calc_mae(listings_clean3$price, price_pred$price7),
-    calc_mae(listings_clean3$price, price_pred$price6),
-    calc_mae(listings_clean3$price, price_pred$price5),
-    calc_mae(listings_clean3$price, price_pred$price4),
-    calc_mae(listings_clean3$price, price_pred$price3),
-    calc_mae(listings_clean3$price, price_pred$price2),
-    calc_mae(listings_clean3$price, price_pred$price1)
+price_df |>
+  summarize(
+    SSE = sum(residuals^2),
+    SST = sum((y-mean(y))^2),
+    R2 = 1 - SSE / SST,
+    rmse = sqrt(mean(residuals^2)),
+    MAE = residuals |> abs() |> mean()
+    
   )
-)
-
-# Display the results
-price_df
 ```
-Taking a look at predicted prices and price_lm6 with Mean Absolute Error (MAE) this indicates the model's average prediction error is smaller compared to other models and avoids overfitting. However, despite its lower MAE, the average error still suggests that the predictions deviate from the actual Airbnb prices by a notable amount.
-
+The kNN model’s R2 0.9972 suggests it captures 99.72% of the variation in Airbnb prices, likely due to testing on the same data used for training. While the MAE of 2.26 indicates most predictions are close to actual prices. The RMSE of 7.52 reveals a few large errors that significantly affect the model’s accuracy. This gap between RMSE and MAE suggests outliers are pulling the RMSE higher, highlighting potential overfitting. 
 ```{r}
 tidy(price_lm6) |> 
   # Rounding the results to 3 decimal places
@@ -539,8 +499,7 @@ tidy(price_lm6) |>
      estimate = round(estimate, 0)
   )
 ```
-```
-The intercept of -$8 indicates that when all the explanatory variables ( bedrooms, room type, bathrooms) are zero, the predicted price of the listing would be −$8. It seems each additional bedroom adds $43 to the listing price, indicating that larger properties tend to charge more. Listings categorized as "Entire home/apartment" or other room types increase the price by $68 on average compared to shared or private rooms, each extra bathroom adds $54.
+The intercept of -$8 indicates that when all the explanatory variables ( bedrooms, room type, bathrooms) are zero, the predicted price of the listing would be −$8. It seems each additional bedroom adds $43 to the listing price, indicating that larger properties tend to charge more. Listings categorized as "Entire home/apartment" or other room types increase the price by $66 on average compared to shared or private rooms, each extra bathroom adds $54.
 
 ```{r}
 # create the residual plot
@@ -568,6 +527,7 @@ augment_columns(
     y = "Residuals"
   )
 ```
+
 The plot suggests that while the model performs well for smaller listings (lower accommodatations), it struggles with larger listings, showing higher variability in residuals and a tendency to underestimate their prices. 
 
 ```{r}
@@ -625,4 +585,4 @@ augment_columns(
   ) + 
   scale_y_continuous(labels = scales::label_dollar())
 ```
-The residual plots show consistent model performance for bedrooms and room_type, with residuals centered around $0 and no significant trends or systematic errors. However, for bathrooms, residuals show a clear downward trend as the number of bathrooms increases, indicating the model underestimates prices for listings with many bathrooms.
+The residual plots show consistent model performance for bedrooms and room_type, with residuals centered around $0 and no significant trends. However, for bathrooms, residuals show a clear downward trend as the number of bathrooms increases, indicating the model underestimates prices for listings with many bathrooms.
