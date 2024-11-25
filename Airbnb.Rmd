@@ -24,65 +24,58 @@ options(digits = 4)
 ```
 
 # Introduction
-Airbnb is a popular company that connects people looking for accommodations with hosts who offer lodging options. The company was founded in 2008 and allows hosts to list their own properties, which can range from a single room to an entire house) for short-term rentals. Even though Airbnb has fares that it sets, most of the price comes down to what the host want to set the price at. This inspired us to determine if the number of people that can be accomodated in an Airbnb properties affects the price of the listing. If it does not, are there any other variables that affect the price more than how many people it can accomodate. More information on the additional types of feed that Airbnb charges can be found at: <https://www.airbnb.com/help/article/125>. The data was retrieved from Kaggle user Oscar Batiz the link is the following: <https://www.kaggle.com/datasets/oscarbatiz/los-angeles-airbnb-listings>.
+Airbnb is a popular company that connects people looking for accommodations with hosts who offer lodging options. The company was founded in 2008 and allows hosts to list their own properties, which can range from a single room to an entire house) for short-term rentals. Even though Airbnb has fares that it sets, most of the price comes down to what the host want to set the price at. This inspired us to determine if the number of people that can be accommodated in an Airbnb properties affects the price of the listing. If this is not true, we wanted to explore if there are any other variables that affect the price more than how many people it can accommodate. More information on the additional types of fees that Airbnb charges can be found at: <https://www.airbnb.com/help/article/125>. The data was retrieved from Kaggle user Oscar Batiz the link is the following: <https://www.kaggle.com/datasets/oscarbatiz/los-angeles-airbnb-listings>.
 
 ## Getting the data
-The code chunk below will load the data of Airbnb listings ranging as of 04 of September 2024. We'll start by cleaning the data and removing any columns that do not have information. 
+The code chunk below will load the data of Airbnb listings as of 04 of September 2024. We'll start by cleaning the data and removing any columns that do not have information. 
 ```{r}
+# Reads in the file
 listings <- read.csv("listings.csv")
 
+# Clean up the data
 listings_clean <- 
   listings |> 
-  dplyr::select(price, host_is_superhost, neighbourhood_group_cleansed,
-                room_type:beds) |> 
-  mutate(
-    superhost = case_when(
-      host_is_superhost == "t" ~ 1,
-      host_is_superhost == "f" ~ 0,
-      TRUE ~ NA),
-    in_LA = if_else(
-      neighbourhood_group_cleansed == "City of Los Angeles", 1, 0),
-    room_type = if_else(
-      room_type == "Entire home/apt" | room_type == "Hotel Room", 1, 0
-    )
-  ) |> 
-  dplyr::select(-neighbourhood_group_cleansed, -host_is_superhost) |> 
-  filter(
-    !is.na(price)
-  )
+  # Selects the columns that we are interested in exploring
+  dplyr::select(price, room_type:beds) |> 
+  
+  # Removes listings without a price
+  filter(!is.na(price))
 
+# Displays clean data
 str(listings_clean)
-```
-```{r}
-# Removes the listings data set since it is large and not used again
-#rm(listings)
 ```
 
 The variables we are going to use are: 
-1. **price**: the price of the AirBnb
-2. **superhost**: If the owner of the AirBnb is a superhost. Airbnb lists a superhost as "a host who goes above and beyond to provide excellent hospitality".
-3. **room_type**: Is a dummy variable. A "1" is used to indicate that the listing is a "Entire home/apt" or a "Hotel room" and a "0" is used to indicate that the listing is a "Private room" or "Shared room".
-4. **accommodates**: Is the number of people that the listing can accommodate.
-5. **bathrooms**: Is the number of bathrooms the listings has. 
-6. **bedrooms**: Is the number of bedrooms the listing has.
-7. **beds**: Is the number of beds the listing has.
-8. **in_LA**: Is a dummy variable. A "1" is used to indicate that the listing is within LA and a "0" to describe that it is outside of LA or unincorporated areas.
+
+1) **price**: The price of the AirBnb in US dollars. 
+
+2) **room_type**: Is used to describe the type of listing (i.e: if the listings is a "Entire home/apt, "Private Room", "Shared Room" or "Hotel Room")
+
+3) **accommodates**: Is the number of people that the listing can accommodate
+
+4) **bathrooms**: Is the number of bathrooms the listings has
+
+5) **bedrooms**: Is the number of bedrooms the listing has
+
+6) **beds**: Is the number of beds the listing has
 
 
-## Lets have a look at a summary of the variables
+
+## Preparing the Data
 ```{r}
+# Displays a quartile summary for the data
 summary(listings_clean$price)
 ```
 
-There seems to be some outliers in this data, particularly with the maximum value of 56,425, which is much higher than the third quartile of 260. This is causing the mean (289) to be notably higher than the median (155) indicating a skewed distribution.
+There seems to be some outliers in this data, particularly with the maximum price of $56,425 which is much higher than the third quartile of 260. This is causing the mean (289) to be notably higher than the median (155) indicating a skewed distribution.
 
-## Lets try to fix this by removing some outliers
+Lets try to fix this by removing some outliers:
 ```{r}
 # Calculate the 5th and 95th percentiles for the price variable
 lower_5th <- quantile(listings_clean$price, 0.05, na.rm = TRUE)
 upper_95th <- quantile(listings_clean$price, 0.95, na.rm = TRUE)
 
-# Filters the dataset to keep only the prices within the 5th and 95th percentiles
+# Filters the dataset to keep only the prices within the 5th & 95th percentiles
 listings_clean2 <- 
   listings_clean |> 
   filter(price >= lower_5th & price <= upper_95th)
@@ -91,29 +84,104 @@ listings_clean2 <-
 summary(listings_clean2$price)
 ```
 
-Looking at our data now, there seems to be fewer outliers now since we have taken out the top 95th and bottom 5th percentiles to get rid of extreme cases. Our median is now closer to our mean and our max and min are not as far away from our mean as well.
+Looking at our data now, there seems to be fewer outliers now since we have taken out the top 95th and bottom 5th percentiles to get rid of extreme cases. These could be either fake listings or listings that are very rare so we do not want to include these in our models further on. Our median is now closer to our mean and our max and min are not as far away from our mean as well.
 
-## Lets have a look at our graph
+Lets have a look at our histogram of price:
 ```{r}
+# Creates a plot of price
 ggplot(data = listings_clean2, 
        mapping = aes(x = price)) +
   
-  geom_histogram(binwidth = 20, 
+  # Plots the histogram
+  geom_histogram(bins = 35, 
                  fill = "steelblue", 
                  color = "black") +
   
+  # Changes titles
   labs(title = "Distribution of Airbnb Prices",
        x = "Price", 
        y = "Frequency") + 
   
+  # Adds currency to the x-axis labels
   scale_x_continuous(label = scales::label_currency())
 
 ```
 
 Looking at our histogram there still seems to be a noticeble right-skew, with a concentration of values between approximately 60 and 300. This suggests, that while most listings are priced lower, a few high-priced outliers are influencing the ditribution, by pulling the mean upwards. 
 
-## Lets explore 
+Lets try applying a log transformation to the price to see if this helps.
 ```{r}
+# Applies log10 transformation to the listing
+listings_clean2$log10_price <- log10(listings_clean2$price)
+
+```
+Now that we have applied a log10 transformation to our data let's have a look to see if the data follows a more normal distribution.
+
+```{r}
+# Creates a plot of price
+ggplot(data = listings_clean2, 
+       mapping = aes(x = price)) +
+  
+  # Plots a histogram
+  geom_histogram(bins = 35, 
+                 fill = "steelblue", 
+                 color = "black") +
+  
+  # Changes the labels
+  labs(title = "Distribution of Airbnb Prices",
+       x = "Price", 
+       y = "Frequency") + 
+  
+  # Adds a log10 transformation and currency to label on x-axis
+  scale_x_continuous(label = scales::label_currency(),
+                     trans = scales::log10_trans())
+
+```
+Now that we have applied the transformation our data looks more normal and it is not as skewed.
+
+Lets explore the room types variable to see if this will help predict the price of the Airbnbs.
+```{r}
+# Creates a plot for room_types
+ggplot(data = listings |> filter(!is.na(price) & !is.na(room_type)),
+       mapping = aes(
+         x = as.factor(room_type), 
+         y = price 
+       )
+) +
+  
+  # Plots the boxplot
+  geom_boxplot(fill = "steelblue") +
+   
+  # Changes label titles 
+  labs(
+    title = "Airbnb Prices by Room Type",
+    x = "Room Type", 
+    y = "Price"
+  ) + 
+  
+  # Changes labels to currency and adds a log10 transformation
+  scale_y_continuous(label = scales::label_currency(),
+                     trans = scales::log10_trans()) 
+
+```
+Since the price range for entire homes/apartments is comparable to hotels and there are only 248 listings for hotel rooms, and the price range for private and shared rooms (only 747 listings of shared room type) is similar, it makes sense to group these categories into two broader groups for analysis. This approach simplifies the data by grouping similar categories, creating one group for “Rooms” (private and shared rooms), which will be assigned a "0", and another for “Hotels Rooms/Entire Apartments/Homes”, which will be assigned a 1. This categorization will help us generalize insights into pricing trends across different accommodations.
+
+Lets go ahead and group these types of room type listings.
+```{r}
+listings_clean2 <- 
+  listings_clean2 |> 
+  mutate(
+    # Changes "Entire home/apt" and "Hotel Room" to "1"
+    # Changes "Private room" and "Shared room" to "0"
+    room_type = if_else(
+      room_type == "Entire home/apt" | room_type == "Hotel Room", 1, 0
+    )
+  )
+```
+
+Lets have a look at the boxplot for the new categorization of listings for predicting price.
+```{r}
+# Creates a plot for room_types
 ggplot(data = listings_clean2,
        mapping = aes(
          x = as.factor(room_type), 
@@ -121,20 +189,37 @@ ggplot(data = listings_clean2,
        )
 ) +
   
+  # Plots the boxplot
   geom_boxplot(fill = "steelblue") +
-    
+   
+  # Changes label titles 
   labs(
     title = "Airbnb Prices by Room Type",
     x = "Room Type", 
     y = "Price"
   ) + 
   
-  scale_y_continuous(label = scales::label_currency())
+  # Changes labels to currency and adds a log10 transformation
+  scale_y_continuous(label = scales::label_currency(),
+                     trans = scales::log10_trans()) + 
+  
+  # Relabels x-axis so that it is not a binary variable
+  scale_x_discrete(labels = c(
+    "0" = "Private or Shared Rooms",
+    "1" = "Entire Homes, Apt & Hotel Rooms"
+  ))
 
 ```
-Looking at the Airbnb room type boxplots the presence of outliers in the higher range for entire homes indicates while most of the listings in this category are within are certain price range, there seems to be a few luxury listings contributing significantly to inflating the overall price average. The median listing for "Entire home/apt" or "Hotel rooms" seems to be higher than "Private rooms" or "Shared rooms". Additionally, the distribution of price for entire homes/apt or hotel rooms seems to be much higher than for private or shared rooms. 
+Looking at the Airbnb room type boxplots the presence of outliers in the higher range for entire homes indicates while most of the listings in this category are within are certain price range, there seems to be a few luxury listings contributing significantly to inflating the overall price average. The median listing for "Entire home/apt" or "Hotel rooms" seems to be higher than "Private rooms" or "Shared rooms". Additionally, the distribution of price for entire homes/apt or hotel rooms seems to be much higher than for private or shared rooms.
 
-## Before making our model lets have a look at multicollinearity
+Now that we changed this variable we will now longer need the large listings dataset so we can remove it. 
+
+```{r}
+# Removes the listings data set since it is large and not used again
+rm(listings)
+```
+
+Lets explore some of the other predictors before we start building some of our models.
 ```{r}
 listings_clean2 |> 
   drop_na() |> 
@@ -145,20 +230,22 @@ listings_clean2 |>
     high = "steelblue",
     label = T,
     label_round = 2,
-    angle = -45,
+    angle = -25,
     hjust = 1
   )
 
 ```
-There seems to be some potential multicollinearity, especially among bedrooms, beds, bathrooms and accomodates. Using all these variables could potentially lead to the interpretation of our model, could also inflate the standard errors by making it difficult to assess the significance of individual predictors in the model.
+There seems to be some potential multicollinearity, especially among bedrooms, beds, bathrooms and accommodates. Using all these variables could potentially lead to misinterpretation of our predictors and could also inflate the standard errors by making it difficult to assess the significance of individual predictors in the model.
 
-
-## Lets have a look at the variables with the highest association with price
+Lets have a look at the variables with the highest association with listings price.
 ```{r}
 summary(listings_clean2$accommodates)
+
 summary(listings_clean2$bedrooms)
 ```
-The maximum value of 50 is significantly larger than the rest of the data, with the median of 1 and the third quartile of 2. This extreme value of 50 suggests the presence of an outlier in the data. 
+The maximum value of 50 is significantly larger than the rest of the data, with the median of 1 and the third quartile of 2. This extreme value of 50 suggests the presence of some potential outlier in the data. 
+
+Lets go ahead and remove the highest and lowest percentile of bathrooms.
 ```{r}
 # Calculate the 1st and 99th percentiles for the bedrooms variable
 lower_percentile <- quantile(listings_clean2$bedrooms, 0.01, na.rm = TRUE)
@@ -171,94 +258,116 @@ listings_clean3 <- listings_clean2 |>
 # Check the summary of the new dataset without extreme outliers
 summary(listings_clean3$bedrooms)
 ```
-Now the furthest percentile outliers have been removed. 
+Now the furthest percentile outliers have been removed. Lets continue exploring our predictors.
 
 
-## Further look at bedrooms and accommodates
-Both bedrooms and accommodates both have a high association with price. Lets have a futher look at these predictors. 
+Since both the bedrooms and accommodates have a high association with price. Lets look at these predictors in a graph.
 ```{r}
 listings_clean3 |> 
-  filter(!is.na(accommodates) & !is.na(bedrooms) & !is.na(bathrooms)) |> 
+  # Removes rows with NA values
+  filter(!is.na(accommodates) & !is.na(bedrooms)) |> 
+  # Adds both predictors we want to explore to single column
   pivot_longer(
-    cols = c(accommodates, bedrooms, bathrooms), 
+    cols = c(accommodates, bedrooms), 
     names_to = "variable",
     values_to = "values"
   ) |> 
   
+  # Plots values to x axis and price to y
   ggplot(
     mapping = aes(
       x = values, 
       y = price)) +
   
-  labs(x = NULL, 
+  # Adds title and removes axis labels
+  labs(title = "Predicting Price with Different Variables",
+       x = NULL, 
        y = NULL) +
   
+  # Adds points to plot
   geom_point() +
   
   # Changes y labels to currency
-  scale_y_continuous(label = scales::label_currency()) +
+  scale_y_continuous(label = scales::label_currency(),
+                     trans = scales::log10_trans()) +
   
-    # Creates separate graph for each of the numeric variables
+  # Creates separate graph for each of the numeric variables
   facet_wrap(
     facets = ~variable,
-    scales = "free_x"
+    scales = "free_x", 
+    nrow = 2
   )  +
-  
+
+  # Adds trends line to graph
   geom_smooth(
-    method = "lm",
+    color = "red",
+    method = "loess",
     formula = y~x,
     se = F
   ) 
 ```
+Accommodates, seems to have a nonlinear relationship with price, where prices increase with the more people the AirBnb can accommodate, but plateau at higher values. This suggests diminishing price as the number of people a listing can accommodate grows. For bedrooms, the relationship with price appears more linear, with prices steadily increasing as the number of bedrooms rises. This indicates that bedrooms may be a stronger and more consistent predictor of price compared to accommodates, particularly for higher-priced listings. Now that we know this lets start working on some machine learning models with our data.
 
 
-
-## Lets make some linear models
+# Machine Learning Techniques
+Lets start by constructing some Linear Models to determine price.
 ```{r}
-
+# Simple model predicting price based on accommodates only
 price_lm1 <- lm(
-  formula = price ~ accommodates, 
-  data = listings_clean3 |> filter(!is.na(accommodates))
+  formula = price ~ accommodates,
+  data = listings_clean3
 )
 
+# Simple model predicting price based on bedrooms only
 price_lm2 <- lm(
-  formula = price ~ accommodates + room_type,
-  data = listings_clean3 |> filter(!is.na(accommodates) & !is.na(room_type))
+  formula = price ~ bedrooms,
+  data = listings_clean3
 )
 
+# Adds room_type to the predictors
 price_lm3 <- lm(
+  formula = price ~ accommodates + room_type,
+  data = listings_clean3
+)
+
+# Predicts price using bedrooms and room_type
+price_lm4 <- lm(
   formula = price ~ bedrooms + room_type,
   data = listings_clean3
 )
 
-#price_lm4 <- lm(
-#  formula = price ~ bedrooms + room_type + accommodates,
-#  data = listings_clean3
-#)
+# Combines bedrooms, room_type, and accommodates as predictors
+price_lm5 <- lm(
+  formula = price ~ bedrooms + room_type + accommodates,
+  data = listings_clean3
+)
 
-#price_lm5 <- lm(
-#  formula = price ~ bedrooms + room_type + accommodates + bathrooms,
-#  data = listings_clean3
-#)
+# Uses bedrooms, room_type, and bathrooms to predict price
+price_lm6 <- lm(
+  formula = price ~ bedrooms + room_type + bathrooms,
+  data = listings_clean3
+)
 
-#price_lmbrb <-lm(
-#  formula = price ~ bedrooms + room_type + bathrooms,
-#  data = listings_clean3
-#)
-  
+# Adds accommodates to price_lm6 predictors
+price_lm7 <- lm(
+  formula = price ~ bedrooms + room_type + accommodates + bathrooms,
+  data = listings_clean3
+)
 
 ```
+Now that we have built some models lets analyze which model is the best at predicting Airbnb prices.
 
-
+Analyzing our Models
 ```{r}
 bind_rows(
   .id = "model",
   "price_lm1" = glance(price_lm1),
   "price_lm2" = glance(price_lm2),
   "price_lm3" = glance(price_lm3),
-  #"price_lm4" = glance(price_lm4),
-  #"price_lm5" = glance(price_lm5),
-  #"price_lmbrb" = glance(price_lmbrb),
+  "price_lm4" = glance(price_lm4),
+  "price_lm5" = glance(price_lm5),
+  "price_lm6" = glance(price_lm6),
+  "price_lm7" = glance(price_lm7)
 ) |> 
   dplyr::select(model, n_predictors = df, r.squared, sigma) |> 
   mutate(r.squared = round(r.squared, 3),
@@ -266,16 +375,15 @@ bind_rows(
   gt::gt()
 
 ```
+Overall, price_lm6 appears to be the best trade-off between simplicity and performance. It has the second-highest R-squared (0.440), the lowest sigma (107), and uses only three predictors (bedrooms, room_type, bathrooms), making it simpler and less prone to overfitting compared to price_lm7. The sigma still seems to be high at 107. This number means that on average, the model’s predictions of Airbnb prices are off by approximately $107 from the actual prices which is quite high. 
 
-## Further look at potential multicollinearity
-Lets have a further look if these predictors will be a problem when making our model by calculating the variance inflation factor (VIF). 
+Lets have a further look if these predictors will be a problem with our model by calculating the variance inflation factor (VIF). 
 ```{r}
-regclass::VIF(price_lm2)
+regclass::VIF(price_lm5)
 ```
+Since our VIF values are below 5, it indicates that multicollinearity is not severe. Since our linear models were not great at predicting the price of the listings lets go ahead and try some other methods.
 
-
-Let's normalize and standardize the explanatory variables of the data set:
-
+Normalizing and standardizing our data before applying other methods.
 ```{r}
 # Normalize function:
 normalize <- function(x) {
@@ -286,7 +394,7 @@ normalize <- function(x) {
 # Normalizing the data
 listings_norm <- 
   listings_clean3 |> 
-  filter(!is.na(beds) & !is.na(bathrooms) & !is.na(superhost)) |>
+  filter(!is.na(beds) & !is.na(bathrooms)) |>
   mutate(
     across(
       .cols = -price,
@@ -295,7 +403,6 @@ listings_norm <-
   )
 
 skim(listings_norm)
-
 
 # Standardize function:
 standardize <- function(x) {
@@ -307,214 +414,68 @@ standardize <- function(x) {
 # Standardizing the data
 listings_stan <-
   listings_clean3 |>
-  filter(!is.na(beds) & !is.na(bathrooms) & !is.na(superhost)) |>
+  filter(!is.na(beds) & !is.na(bathrooms)) |>
   mutate(
     across(
       .cols = -price, # Standardize the explanatory variables
       .fns = standardize
     )
   )
+
 skim(listings_stan)
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    room_type    count_rooms
-1          City of Los Angeles       22447
-2                 Other Cities       18773
-3         Unincorporated Areas        4313
-
-        room_type count_rooms
-1 Entire home/apt       33612
-2    Private room       10886
-3     Shared room         747
-4      Hotel room         288
-
-```{r}
-listings_clean |> 
-  pivot_longer(
-    cols = c(accommodates, bathrooms, bedrooms, beds), 
-    names_to = "variable",
-    values_to = "values"
-  ) |> 
-  
-  ggplot(mapping = aes(
-  x = values, 
-  y = price)) +
-
-  labs(x = NULL, 
-       y = NULL) +
-  
-  geom_point() +
-  
-  # Changes y labels to currency
-  scale_y_continuous(label = scales::label_currency()) +
-  
-    # Creates separate graph for each of the numeric variables
-  facet_wrap(
-    facets = ~variable,
-    scales = "free_x"
-  )
-  
-  geom_smooth(
-    method = "loess",
-    formula = y~x,
-    se = F
-  ) 
-  
-  
-
-```
-
-```{r}
-  ggplot(
-    data = listings_clean,
-    mapping = aes(
-      x = accommodates, 
-      y = price)) +
-
-  geom_point() +
-  
-    geom_smooth(
-    method = "loess",
-    formula = y~x,
-    se = F
-  ) +
-  
-  # Changes y labels to currency
-  scale_y_continuous(label = scales::label_currency())
-```
-
-```{r}
-price_lm1 <- lm(
-  formula = price ~ accommodates, 
-  data = listings_clean
-)
-
-price_lm2 <- lm(
-  formula = price ~ accommodates + room_type,
-  data = listings_clean
-)
-
-price_lm3 <- lm(
-  formula = price ~ accommodates + room_type + bathrooms,
-  data = listings_clean
-)
-
-```
-
-```{r}
-bind_rows(
-  .id = "model",
-  "price_lm1" = glance(price_lm1),
-  "price_lm2" = glance(price_lm2),
-  "price_lm3" = glance(price_lm3)
-) |> 
-  dplyr::select(model, n_predictors = df, r.squared, sigma) |> 
-  mutate(r.squared = round(r.squared, 3),
-         sigma = round(sigma, 0)) |> 
-  gt::gt()
-
-
-```
-
-```{r}
-listings_ratings <- 
-  listings |> 
-  dplyr::select(id, host_since:host_is_superhost, price, number_of_reviews:review_scores_rating)
-  
-  
-  listings_ratings |> 
-  dplyr::select(where(is.numeric)) |> 
-  ggcorr(
-    low = "tomato",
-    mid = "white",
-    high = "steelblue",
-    label = T,
-    label_round = 2,
-    angle = -45,
-    hjust = 1
-  )
-  
-```
-
-```{r}
-listings_clean |>
-  ggpairs()
-```
-Creating a training and test data set
-```{r}
-# Set seed for reproducibility
-set.seed(123)
-
-# Split the data: 80% training, 20% testing
-split <- sample.split(listings_clean3$price, SplitRatio = 0.8)
-
-# Create training and testing sets
-training_listings_clean3 <- subset(listings_clean3, split == TRUE)
-test_listings_clean3 <- subset(listings_clean3, split == FALSE)
-
-training_listings_clean3 <- training_listings_clean3 |> drop_na()
-test_listings_clean3 <- test_listings_clean3 |> drop_na()
 ```
 
 ```{r}
 # Predictions for the test dataset using the full data frame as newdata
-price3 <- predict(object = price_lm3, newdata = test_listings_clean3)
-price2 <- predict(object = price_lm2, newdata = test_listings_clean3)
-price1 <- predict(object = price_lm1, newdata = test_listings_clean3)
+price7 <- predict(object = price_lm7, newdata = listings_clean3)
+price6 <- predict(object = price_lm6, newdata = listings_clean3)
+price5 <- predict(object = price_lm5, newdata = listings_clean3)
+price4 <- predict(object = price_lm4, newdata = listings_clean3)
+price3 <- predict(object = price_lm3, newdata = listings_clean3)
+price2 <- predict(object = price_lm2, newdata = listings_clean3)
+price1 <- predict(object = price_lm1, newdata = listings_clean3)
 
 # Create a data frame with actual prices and predictions from all models
 price_pred <- data.frame(
-  actual_price = test_listings_clean3$price,
+  actual_price = listings_clean3$price,
+  price7 = price7,
+  price6 = price6,
+  price5 = price5,
+  price4 = price4,
   price3 = price3,
   price2 = price2,
   price1 = price1
 )
 
 
-tibble(price_pred)
+head(price_pred)
 
 ```
 
 ```{r}
-# Remove rows with NA values
-training_listings_clean3 <- na.omit(training_listings_clean3)
-test_listings_clean3 <- na.omit(test_listings_clean3)
-
 # KNN regression
 price_knn <- 
   knn.reg(
-    train = training_listings_clean3 |> select(-price),  # Training predictors
-    test = test_listings_clean3 |> select(-price),    # Testing predictors
-    y = training_listings_clean3$price,                  # Training response variable
+    train = listings_clean3 |> select(-price),  # Training predictors
+    test = listings_clean3 |> select(-price),    # Testing predictors
+    y = listings_clean3$price,                  # Training response variable
     k = 5                                      # Number of neighbors
   )
 
 # Create a data frame with predictions, actual prices, and residuals
 price_df <- 
   tibble(
-    actual_price = test_listings_clean3$price,
+    actual_price = listings_clean3$price,
     predicted_price = price_knn$pred,
     residuals = actual_price - predicted_price
   )
 
 # Display the results
-price_df
+head(price_df)
 
 ```
+The KNN model with k=5k=5 provides close predictions for most listings, though it maybe a little overfitted as we are using the same data for testing and training. We can see by small residuals like -0.2 and 0.0 for actual prices of 399 and 49 predicted respectively well. However, larger residuals, such as -27.4 for an actual price of 110, indicate that the model struggles with certain listings, likely due to outliers. Overall, the model captures general pricing trends but could benefit from further tunings of k. 
+
 ```{r}
 # Functions for sigma and MAE
 calc_sigma <- function(actual, predicted) {
@@ -529,30 +490,139 @@ calc_mae <- function(actual, predicted) {
 
 # Create the data frame and calculate R2, sigma, and MAE
 price_df <- data.frame(
-  model = c("price_lm3", "price_lm2", "price_lm1"),
+  model = c("price_lm7", "price_lm6","price_lm5", "price_lm4", "price_lm3", "price_lm2", "price_lm1"),
   
   # R-squared values
   r_squared = c(
-    cor(test_listings_clean3$price, price_pred$price3)^2,
-    cor(test_listings_clean3$price, price_pred$price2)^2,
-    cor(test_listings_clean3$price, price_pred$price1)^2
+    cor(listings_clean3$price, price_pred$price7)^2,
+    cor(listings_clean3$price, price_pred$price6)^2,
+    cor(listings_clean3$price, price_pred$price5)^2,
+    cor(listings_clean3$price, price_pred$price4)^2,
+    cor(listings_clean3$price, price_pred$price3)^2,
+    cor(listings_clean3$price, price_pred$price2)^2,
+    cor(listings_clean3$price, price_pred$price1)^2
   ),
   
   # Sigma values
   sigma = c(
-    calc_sigma(test_listings_clean3$price, price_pred$price3),
-    calc_sigma(test_listings_clean3$price, price_pred$price2),
-    calc_sigma(test_listings_clean3$price, price_pred$price1)
+    calc_sigma(listings_clean3$price, price_pred$price7),
+    calc_sigma(listings_clean3$price, price_pred$price6),
+    calc_sigma(listings_clean3$price, price_pred$price5),
+    calc_sigma(listings_clean3$price, price_pred$price4),
+    calc_sigma(listings_clean3$price, price_pred$price3),
+    calc_sigma(listings_clean3$price, price_pred$price2),
+    calc_sigma(listings_clean3$price, price_pred$price1)
   ),
   
   # MAE values
   mae = c(
-    calc_mae(test_listings_clean3$price, price_pred$price3),
-    calc_mae(test_listings_clean3$price, price_pred$price2),
-    calc_mae(test_listings_clean3$price, price_pred$price1)
+    calc_mae(listings_clean3$price, price_pred$price7),
+    calc_mae(listings_clean3$price, price_pred$price6),
+    calc_mae(listings_clean3$price, price_pred$price5),
+    calc_mae(listings_clean3$price, price_pred$price4),
+    calc_mae(listings_clean3$price, price_pred$price3),
+    calc_mae(listings_clean3$price, price_pred$price2),
+    calc_mae(listings_clean3$price, price_pred$price1)
   )
 )
 
 # Display the results
 price_df
 ```
+Taking a look at predicted prices and price_lm6 with Mean Absolute Error (MAE) this indicates the model's average prediction error is smaller compared to other models and avoids overfitting. However, despite its lower MAE, the average error still suggests that the predictions deviate from the actual Airbnb prices by a notable amount.
+
+```{r}
+tidy(price_lm6) |> 
+  # Rounding the results to 3 decimal places
+  transmute(
+    term = term,
+     estimate = round(estimate, 0)
+  )
+```
+```
+The intercept of -$8 indicates that when all the explanatory variables ( bedrooms, room type, bathrooms) are zero, the predicted price of the listing would be −$8. It seems each additional bedroom adds $43 to the listing price, indicating that larger properties tend to charge more. Listings categorized as "Entire home/apartment" or other room types increase the price by $68 on average compared to shared or private rooms, each extra bathroom adds $54.
+
+```{r}
+# create the residual plot
+augment_columns(
+  x = price_lm6,
+  data = listings_clean3 
+) |>
+  ggplot(
+    mapping = aes(
+      x = .fitted,
+      y = .resid,
+      color = accommodates
+    )
+  ) +
+  geom_point(alpha = 0.2) +
+  geom_hline(
+    yintercept = 0,
+    color = "black",
+    size = 1
+  ) +
+  scale_y_continuous(labels = scales::dollar) + 
+  scale_x_continuous(labels = scales::dollar) +
+  labs(
+    x = "Predicted Price",
+    y = "Residuals"
+  )
+```
+The plot suggests that while the model performs well for smaller listings (lower accommodatations), it struggles with larger listings, showing higher variability in residuals and a tendency to underestimate their prices. 
+
+```{r}
+augment_columns(
+  x = price_lm6,
+  data = listings_clean3
+) |> 
+  dplyr::select(bedrooms, room_type, bathrooms, .resid) |> 
+  # Pivoting the 3 predictors into one column
+  pivot_longer(
+    cols = -.resid,
+    names_to = "predictor",
+    values_to = "value"
+  ) |> 
+  # Ordering them in the same order as the data
+  mutate(predictor = as_factor(predictor)) |> 
+  
+  # Creating the individual residual plots
+  ggplot(
+    mapping = aes(
+      x = value,
+      y = .resid
+    )
+  ) +
+  
+  geom_point(alpha = 0.25) + 
+  
+  # Adding a horizontal line at y = 0
+  geom_hline(
+    mapping = aes(yintercept = mean(.resid)),
+    color = "red",
+    linewidth = 1
+  ) +
+  
+  # Adding a blue trend line that should be very similar to the red line
+  # if there isn't a non-linear trend between x & y
+  geom_smooth(
+    method = "loess",
+    se = F,
+    formula = y ~ x,
+    color = "steelblue",
+    linewidth = 1
+  ) +
+  
+  # A residual plot for the 3 predictors
+  facet_wrap(
+    facets = vars(predictor),
+    scales = "free_x",
+    nrow = 5
+  ) + 
+  # Changing the labels and adding $ to the y-axis
+  labs(
+    x = NULL,
+    y = "Residuals"
+  ) + 
+  scale_y_continuous(labels = scales::label_dollar())
+```
+The residual plots show consistent model performance for bedrooms and room_type, with residuals centered around $0 and no significant trends or systematic errors. However, for bathrooms, residuals show a clear downward trend as the number of bathrooms increases, indicating the model underestimates prices for listings with many bathrooms.
