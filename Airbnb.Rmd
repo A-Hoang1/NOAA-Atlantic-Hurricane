@@ -222,8 +222,8 @@ rm(listings)
 Lets explore some of the other predictors before we start building some of our models.
 ```{r}
 listings_clean2 |> 
-  drop_na() |> 
   dplyr::select(where(is.numeric)) |> 
+  drop_na() |> 
   ggcorr(
     low = "tomato",
     mid = "white",
@@ -380,7 +380,7 @@ Overall, price_lm6 appears to be the best trade-off between simplicity and perfo
 
 Lets have a further look if these predictors will be a problem with our model by calculating the variance inflation factor (VIF). 
 ```{r}
-regclass::VIF(price_lm5)
+regclass::VIF(price_lm6)
 ```
 Since our VIF values are below 5, it indicates that multicollinearity is not severe. Since our linear models were not great at predicting the price of the listings lets go ahead and try some other methods.
 
@@ -499,7 +499,7 @@ tidy(price_lm6) |>
      estimate = round(estimate, 0)
   )
 ```
-The intercept of -$8 indicates that when all the explanatory variables ( bedrooms, room type, bathrooms) are zero, the predicted price of the listing would be −$8. It seems each additional bedroom adds $43 to the listing price, indicating that larger properties tend to charge more. Listings categorized as "Entire home/apartment" or other room types increase the price by $66 on average compared to shared or private rooms, each extra bathroom adds $54.
+The intercept of -\$8 indicates that when all the explanatory variables ( bedrooms, room type, bathrooms) are zero, the predicted price of the listing would be −\$8. It seems each additional bedroom adds \$43 to the listing price, indicating that larger properties tend to charge more. Listings categorized as "Entire home/apartment" or other room types increase the price by \$66 on average compared to shared or private rooms, each extra bathroom adds $54.
 
 ```{r}
 # create the residual plot
