@@ -427,6 +427,7 @@ head(price_pred)
 
 ```
 It seems the predictions are a bit off, let's try and graph the relationship between actual and predicted prices to better visualize the model's performance.
+
 ```{r}
 # residual plot
 augment_columns(
@@ -481,7 +482,7 @@ augment_columns(
     x = NULL,
     y = "Residuals"
   ) + 
-  scale_y_continuous(labels = scales::label_dollar())
+  scale_y_continuous(labels = scales::label_dollar()) 
 ```
 
 The residual plots show consistent model performance for bedrooms and room_type, with residuals centered around $0 and no significant trends. However, for bathrooms, residuals show a clear downward trend as the number of bathrooms increases, indicating the model underestimates prices for listings with many bathrooms.
@@ -529,10 +530,10 @@ listings_stan <-
 skim(listings_stan)
 ```
 
-
 Since our predictor variables are numeric lets try to use kNN regression to make some predictions for price, with bedrooms, and bathrooms, lets leave room_types out as they are just binary values/categorical. 
+
 ```{r}
-# Normalizing and standardizing the explanatory variables
+# Normalizing and standardizing 
 clean3_norm <- 
   listings_clean3 |> 
   mutate(
@@ -550,7 +551,7 @@ clean3_stan <-
 # Set seed for reproducibility 
 set.seed(1234)
 
-# k
+# k 1:100 
 k <- 1:100
 
 # creating a data.frame fit_stats_norm to store the results in:
@@ -651,18 +652,19 @@ price_df <- tibble(
 
 price_df
 ```
-Taking a look at our fit statistics, we can see that our best choice of k is 48 with an R2 of 0.4489 and MAE of 0.1609. Our model's Mean Absolute Error (MAE) of 0.1609 is lower than the baseline MAE_mean of 0.2208 (the error we'd get by always predicting the mean), leading to a Mean Absolute Relative Error (MARE) of 0.2713. This indicates that while our model performs better than simply predicting the mean price, it still has significant room for improvement. The RMSE of 0.203 is relatively close to our MAE, suggesting our errors are fairly consistent without extreme outliers. These statistics collectively suggest that kNN regression isn't great for predicting prices with just bedrooms and bathrooms as predictors. Leaving out room_type, which is a binary variable but also one that contributes significantly in predicting prices, affects the overall accuracy of our model. Given that our model only explains about 44.89% of the variance in prices, a different modeling approach that can incorporate both numeric and categorical variables (such as a regression tree) might be more appropriate.
+Taking a look at our fit statistics, we can see that our best choice of k is 48 with an R2 of 0.4489 and MAE of 0.1609. Our model's MAE of 0.1609 is lower than the baseline MAE_mean of 0.2208. This indicates that while our model performs better than simply predicting the mean price, it still has significant room for improvement. The RMSE of 0.203 is relatively close to our MAE, suggesting our errors are fairly consistent without extreme outliers. These statistics suggest that kNN regression isn't great for predicting prices with just bedrooms and bathrooms as predictors. Leaving out room_type, which is a binary variable but also one that contributes significantly in predicting prices, affects the overall variance of our model. Given that our model only explains about 44.89% of the variance in prices, a different modeling approach that can incorporate both numeric and categorical variables (such as a regression tree) might be more appropriate.
 
+Let's look at the relationships between our predictors and price,
 ```{r}
 listings_clean3 |> 
   pivot_longer(
-    cols = c(bedrooms, bathrooms, room_type),  # including room_type
+    cols = c(bedrooms, bathrooms, room_type), 
     names_to = "variable",
     values_to = "value"
   ) |> 
   mutate(
     variable = as_factor(variable),
-    high_price = if_else(log10_price > median(log10_price), "red", "black")
+    high_price = if_else(log10_price > 2.5, "red", "black")
   ) |> 
   
   ggplot(
@@ -694,17 +696,20 @@ listings_clean3 |>
     y = "log10(Price)"
   ) + 
   
-  scale_color_identity()
+  scale_color_identity() +
+  scale_y_continuous(trans = scales::log10_trans())
   
 ```
-Looking at the relationships between our predictors and price, we can see clear non-linear patterns, particularly in how bathrooms and bedrooms relate to price, as shown by the curving blue LOESS lines. Additionally, room_type shows distinct price groupings, suggesting clear categorical effects.
 
+We can see clear non-linear patterns, particularly in how bathrooms and bedrooms relate to price, as shown by the curving blue lines. Additionally, room_type shows clear categorical effects, however using a regression tree still seems more promising as we will be able to use all variables in our predictions.
+
+Let's create the full tree with our predictors and find the prune cutoff.
 ```{r}
 RNGversion("4.1.0")
-set.seed(2870)
+set.seed(1234)
 
-# Create regression tree with bedrooms, bathrooms, and room_type
-airbnb_full <- 
+# full regression tree with bedrooms, bathrooms, and room_type
+airbnb_full <-
  rpart(
    formula = log10_price ~ bedrooms + room_type + bathrooms,
    data = listings_clean3,
@@ -715,11 +720,6 @@ airbnb_full <-
    cp = 0
  )
 
-# Looking at the cp table 
-data.frame(airbnb_full$cptable)
-```
-
-```{r}
 # find xerror cutoff
 airbnb_full$cptable |>
  data.frame() |>
@@ -747,6 +747,7 @@ c("xcutoff" = xcutoff,
  round(digits = 4)
 ```
 
+Now that we have our prune cutoff lets prune the full tree and visualize the results.
 ```{r}
 # Prune the tree
 prune(tree = airbnb_full,
@@ -762,33 +763,7 @@ rpart.plot(airbnb_tree,
           shadow.col = 'gray')
 ```
 
-```{r}
-# Get variable importance
-caret::varImp(airbnb_tree) |> 
- arrange(desc(Overall))
-
-# Visualize variable importance
-caret::varImp(airbnb_tree) |> 
- arrange(desc(Overall)) |> 
- rownames_to_column(var = "variable") |> 
- 
- ggplot(mapping = aes(x = fct_reorder(variable, -Overall),
-                      y = Overall)) + 
- 
- geom_col(fill = "steelblue",
-          color = "black") + 
- 
- labs(x = NULL,
-      y = "Variable Importance",
-      title = "Importance of Variables in Predicting Airbnb Prices") +  # added title
- 
- scale_y_continuous(expand = c(0, 0, 0.05, 0)) +
- 
- theme_minimal() +  # optional: for cleaner look
- theme(
-   axis.text.x = element_text(angle = 45, hjust = 1)  # for better label readability
- )
-```
+The regression tree shows that the variable of importance seems to be the number of bedrooms, with a split at 2 bedrooms. For smaller properties with less than 2 bedrooms, room type and bathrooms are key factors, with fewer bathrooms generally leading to lower prices, as shown by nodes values around 1.8 to 2.2 (log10_prices). For larger properties with greater than or equal to 2 bedrooms, it seems higher bathroom counts are linked to higher prices, reaching values as high as 2.64 for specific combinations of room type and bathroom count. Overall, the highest prices are associated with properties with more bedrooms, bathrooms and the type of room(s) while the lowest prices are found in properties with fewer amenities of variables.
 
 ```{r}
 # generate predictions for the original listings dataset
@@ -797,15 +772,13 @@ predict(
 ) ->
  pred_price
 
-# compare the distribution of predicted vs. actual log10_prices
+# compare the distribution of predicted vs. actual
 bind_rows(
  "predicted" = summary(pred_price),
  "actual" = summary(listings_clean3$log10_price),
  .id = "price"
 )
-```
 
-```{r}
 # Look at the correlation of outcomes with predictions
 listings_clean3 |>
  mutate(pred_price = pred_price) |>
@@ -816,24 +789,26 @@ listings_clean3 |>
  ) |>
  mutate(mae_reduc = 1 - MAE/MAE_mean)
 ```
+From our results of our fit statistics we can see that the our R2 has improved by approximately 0.0826, which is a little better than our kNN regression model (R2 = 0.4489), while our MAE of 0.1464 improved by 0.0145, this still indicates our predictions deviate by about 0.15 on the log10 scale from actual prices, showing a mean reduction in error of 33.71% compared to baseline predictions, with these improvements in mind we should use a regression tree model rather than kNN regression. 
 
+Finally let's look at the actual vs predictions of airbnb prices together.
 ```{r}
 pred_results <- 
  listings_clean3 |>
  mutate(predicted = pred_price,
         node = airbnb_tree$where)
 
-# how many cases are in each of our nodes
+# cases are in each of our nodes
 pred_results |>
  count(node) |>
  arrange(desc(n))
 
-# Now let's make the graph of predicted vs actual values
+# graph of predicted vs actual values
 ggplot(
  data = pred_results,
  mapping = aes(
    x = predicted, 
-   y = log10_price
+   y = listings_clean3$price
  )
 ) +
  geom_point(
@@ -841,12 +816,15 @@ ggplot(
      color = factor(node)
    ),
    show.legend = F,
-   alpha = 0.5  # added for better visibility with large dataset
+   alpha = 0.25
  ) +
  labs(
-   x = "Predicted log10(Price)",
-   y = "Actual log10(Price)",
-   title = "Predicted vs Actual Airbnb Prices by Tree Node"
+   x = "Predicted log10_price",
+   y = "Actual log10_price",
+   title = "Predicted vs Actual Airbnb Prices"
  ) +
- theme_minimal()
+  scale_x_continuous(trans = scales::log10_trans()) +
+ theme_bw()
 ```
+
+The spread suggests our model performs better at predicting mid-range prices, while showing more variability at the extreme ends of the price spectrum, particularly for higher-priced listings where predictions tend to underestimate actual prices. 
