@@ -728,8 +728,7 @@ airbnb_full <-
  rpart(
    formula = log10_price ~ bedrooms + room_type + bathrooms,
    data = listings_clean3,
-   method = "anova",  # indicates to make a reg tree
-   # stop the prepruning criteria
+   method = "anova",  
    minsplit = 2,
    minbucket = 1,
    cp = 0
@@ -749,11 +748,8 @@ airbnb_full$cptable |>
 # find the cp value to prune the tree
 airbnb_full$cptable |>
  data.frame() |>
- # use filter to pick the rows less than the cutoff value
  filter(xerror < xcutoff) |>
- # use slice to keep the first row
  slice(1) |>
- # save the cp value
  pull(CP) ->
  prune_cp
 
@@ -764,12 +760,12 @@ c("xcutoff" = xcutoff,
 
 Now that we have our prune cutoff lets prune the full tree and visualize the results.
 ```{r}
-# Prune the tree
+# prune the tree
 prune(tree = airbnb_full,
      cp = prune_cp) ->
  airbnb_tree
 
-# Create visual plot of the pruned tree
+# plot the pruned tree
 rpart.plot(airbnb_tree, 
           digits = 4,
           fallen.leaves = TRUE,
@@ -781,20 +777,20 @@ rpart.plot(airbnb_tree,
 The regression tree shows that the variable of importance seems to be the number of bedrooms, with a split at 2 bedrooms. For smaller properties with less than 2 bedrooms, room type and bathrooms are key factors, with fewer bathrooms generally leading to lower prices, as shown by nodes values around 1.8 to 2.2 (log10_prices). For larger properties with greater than or equal to 2 bedrooms, it seems higher bathroom counts are linked to higher prices, reaching values as high as 2.64 for specific combinations of room type and bathroom count. Overall, the highest prices are associated with properties with more bedrooms, bathrooms and the type of room(s) while the lowest prices are found in properties with fewer amenities of variables.
 
 ```{r}
-# generate predictions for the original listings dataset
+# predictions for the original listings dataset
 predict(
  object = airbnb_tree
 ) ->
  pred_price
 
-# compare the distribution of predicted vs. actual
+# comparison of predicted vs. actual
 bind_rows(
  "predicted" = summary(pred_price),
  "actual" = summary(listings_clean3$log10_price),
  .id = "price"
 )
 
-# Look at the correlation of outcomes with predictions
+# correlation of outcomes with predictions
 listings_clean3 |>
  mutate(pred_price = pred_price) |>
  summarize(
