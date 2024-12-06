@@ -634,6 +634,21 @@ fit_stats_combined |>
 ```
 
 ```{r}
+# reproducibility
+set.seed(1234)
+
+# kNN Regression with k = 48
+price_knn48 <- 
+  knn.reg(
+    train = listings_norm,              
+    y = listings_clean3$log10_price,     
+    k = 48                              
+  )
+# saving actual and predicted prices
+actual_prices <- listings_clean3$log10_price
+predicted_prices <- price_knn48$pred
+
+# display the results and calculate fit statistics
 price_df <- tibble(
   y = listings_clean3$log10_price,
   predicted = predicted_prices,
@@ -652,7 +667,7 @@ price_df <- tibble(
 
 price_df
 ```
-Taking a look at our fit statistics, we can see that our best choice of k is 48 with an R2 of 0.4489 and MAE of 0.1609. Our model's MAE of 0.1609 is lower than the baseline MAE_mean of 0.2208. This indicates that while our model performs better than simply predicting the mean price, it still has significant room for improvement. The RMSE of 0.203 is relatively close to our MAE, suggesting our errors are fairly consistent without extreme outliers. These statistics suggest that kNN regression isn't great for predicting prices with just bedrooms and bathrooms as predictors. Leaving out room_type, which is a binary variable but also one that contributes significantly in predicting prices, affects the overall variance of our model. Given that our model only explains about 44.89% of the variance in prices, a different modeling approach that can incorporate both numeric and categorical variables (such as a regression tree) might be more appropriate.
+Taking a look at our fit statistics, we can see that our best choice of k is 48 with an R2 of 0.4421 and MAE of 0.1618. Our model's MAE is lower than the baseline MAE_mean of 0.2208. This indicates that while our model performs better than simply predicting the mean price, it still has significant room for improvement. The RMSE of 0.2042 is relatively close to our MAE, suggesting our errors are fairly consistent without extreme outliers. These statistics suggest that kNN regression isn't great for predicting prices with just bedrooms and bathrooms as predictors. Leaving out room_type, which is a binary variable but also one that contributes significantly in predicting prices, affects the overall variance of our model. Given that our model only explains about 44.21% of the variance in prices, a different modeling approach that can incorporate both numeric and categorical variables (such as a regression tree) might be more appropriate.
 
 Let's look at the relationships between our predictors and price,
 ```{r}
@@ -789,7 +804,8 @@ listings_clean3 |>
  ) |>
  mutate(mae_reduc = 1 - MAE/MAE_mean)
 ```
-From our results of our fit statistics we can see that the our R2 has improved by approximately 0.0826, which is a little better than our kNN regression model (R2 = 0.4489), while our MAE of 0.1464 improved by 0.0145, this still indicates our predictions deviate by about 0.15 on the log10 scale from actual prices, showing a mean reduction in error of 33.71% compared to baseline predictions, with these improvements in mind we should use a regression tree model rather than kNN regression. 
+
+From our results of our fit statistics we can see that the our R2 has improved by approximately 0.0894, which is a little better than our kNN regression model (R2 = 0.4421), while our MAE of 0.1464 improved by 0.0164, this indicates our predictions still deviate by about 0.15 (log10) from actual prices, showing a mean reduction in error of 33.71% compared to baseline predictions, with these improvements in mind we should use a regression tree model rather than kNN regression. 
 
 Finally let's look at the actual vs predictions of airbnb prices together.
 ```{r}
