@@ -411,9 +411,9 @@ listings_clean2 |>
 
 ```
 
-The maximum value of 50 is significantly larger than the rest of the data, with the median of 1 and the third quartile of 2. This extreme value of 50 suggests the presence of some potential outlier in the data. 
+The maximum value of 50 is significantly larger than the rest of the data for bedrooms, bathrooms and beds. These extreme value of 50 suggests the presence of some potential outliers in the data. These could be from potential fake listings on Airbnb.
 
-Lets go ahead and remove the highest and lowest percentile of bedrooms & bathrooms
+Lets go ahead and remove the highest and lowest percentile of bedrooms, beds & bathrooms
 ```{r}
 # Calculate the 1st and 99th percentiles for the bedrooms variable
 lower_per_bed <- quantile(listings_clean2$bedrooms, 0.01, na.rm = TRUE)
@@ -876,93 +876,92 @@ listings_clean3 |>
 
 From our fit staistics we can see that the regression tree has captured %51.46 of variance from the data which is a little better than the linear model from %42.3, this still indicates our predictions deviate by about 0.1461 on the log10 scale from actual prices, showing a mean reduction in error of 32.56% compared to baseline predictions, with these improvements in mind we should use a regression tree model rather than linear regression. 
 
-Finally let's look at the actual vs predictions of airbnb prices together.
+Finally let's look at the actual vs predictions results of the regression tree of airbnb prices together.
 
 ```{r}
-# Manually assign the correct node labels from the tree diagram
-pred_results <- listings_clean3 |>
+# confidence intervals for residual plotting
+ci_results <- listings_clean3 |>
   mutate(
     predicted = pred_price,
-    node = as.numeric(row.names(airbnb_tree$frame)[airbnb_tree$where]) # Match tree nodes
-  )
-
-
-# Map the new node labels to match the tree diagram
-node_mapping <- c(
-  "8" = "1.829", "9" = "1.933", "10" = "2.058", 
-  "12" = "2.142", "22" = "2.087", "25" = "2.243",
-  "26" = "2.345", "27" = "2.359", "31" = "2.158",
-  "58" = "2.201", "59" = "2.439", "61" = "2.516", 
-  "62" = "2.616"
-)
-
-
-
-# Apply the mapping to the node column
-pred_results$node <- factor(pred_results$node, levels = names(node_mapping), labels = node_mapping)
-
-# Recalculate statistics for heatmap
-ci_results <- pred_results |>
+    # get the nodes from the pruned tree
+    node = as.numeric(row.names(airbnb_tree$frame)[airbnb_tree$where])
+  ) |>
+  # calculate 95% confidence intervals 
   summarise(
-    mean_predicted = mean(predicted, .by = node),
-    mean_actual = mean(log10_price, .by = node),
-    n = sum(!is.na(log10_price)),  # Count non-NA observations
-    sd_actual = sqrt(sum((log10_price - mean(log10_price, .by = node))^2) / (n - 1)),
-    se_actual = sd_actual / sqrt(n),
+    mean_predicted = mean(predicted),
+    mean_actual = mean(log10_price),
+    se_actual = sd(log10_price) / sqrt(n()),
     lower_ci = mean_actual - 1.96 * se_actual,
     upper_ci = mean_actual + 1.96 * se_actual,
-    .by = node
+    residuals = mean_actual - mean_predicted,
+    .by = 'node'
   )
 
-# Heatmap with improved legend for residuals
+# create a heat map to visualize regression tree predictions
 ggplot(data = ci_results, 
-       aes(x = node, 
-           y = mean_actual)) +
-  geom_tile(
-    aes(fill = mean_actual - mean_predicted),  # Residuals as fill
-    color = "white",  # Add gridlines
-    width = 1,        # Adjust width of tiles
-    height = 0.4      # Adjust height of tiles for better visibility
-  ) +
-  geom_errorbar(
+       aes(x = factor(node), y = mean_actual)) +
+  # Add jitter points for actual log10_price values
+  geom_jitter(
+    data = listings_clean3 |> 
+      mutate(
+        node = as.numeric(row.names(airbnb_tree$frame)[airbnb_tree$where])
+      ),
     aes(
-      ymin = lower_ci,
-      ymax = upper_ci
+      x = factor(node), 
+      y = log10_price
     ),
+    color = "purple",
+    alpha = 0.2,  # Make points semi-transparent
+    width = 0.2,  # Add slight horizontal jitter
+    inherit.aes = FALSE  # Prevent aesthetics inheritance
+  ) +
+  # Add tiles to represent residuals
+  geom_tile(
+    aes(fill = residuals),  # Residuals as fill
+    color = "white",
+    width = 0.9,
+    height = 0.3
+  ) +
+  # Add error bars for confidence intervals
+  geom_errorbar(
+    aes(ymin = lower_ci, ymax = upper_ci),
     color = "black",
-    width = 0.3,
+    width = 0.2,
     linetype = "dashed"
   ) +
+  # Adjust the fill gradient for residuals
   scale_fill_gradient2(
-    low = "blue",                   # Underpredictions
-    mid = "green",                  # Accurate predictions
-    high = "red",                   # Overpredictions
-    midpoint = 0,                   # Zero residuals at the center
-    name = "Accuracy",             # Title for legend
-    breaks = c(-0.5, 0, 0.5),       # Define corresponding breaks
+    low = "blue", 
+    mid = "purple", 
+    high = "red", 
+    midpoint = 0,
+    name = "Residuals",
+    breaks = c(-0.5, 0, 0.5),  # Logical breakpoints for residuals
+    labels = c("Underpredict", "Accurate", "Overpredict")  # Custom labels
   ) +
+  # Customize labels and theme
   labs(
     title = "Heatmap of Residuals by Node",
-    subtitle = "Confidence intervals shown as error bars",
+    subtitle = "95% confidence intervals with jittered actual prices",
     x = "Node",
-    y = "Mean"
+    y = ""
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(hjust = 0.5, size = 14),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
     plot.subtitle = element_text(hjust = 0.5, size = 12),
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+    axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "right",
-    legend.title = element_text(face = "bold", size = 10),  # Bold legend title
-    legend.text = element_text(size = 9)  # Adjust legend text size
+    legend.title = element_text(size = 10, face = "bold"),
+    legend.text = element_text(size = 9)
   )
 
 ```
-The heatmap of residuals reveals inaccuracies across several nodes in the regression tree. Node 2.345, representing listings with more than 2 bedrooms, fewer than 1.75 bathrooms, and classified as a private or shared room, shows significant overprediction, suggesting that outliers may still be inflating the predicted prices. In contrast, nodes such as 2.439, associated with listings featuring more than 3.25 bathrooms, exhibit underprediction, where actual prices are underestimated. Nodes like 2.243 and 2.201, which correspond to listings with moderate bathroom counts and room types, demonstrate closer alignment between predicted and actual prices. Overall, the model performs relatively well, though it generally tends to underpredict prices.
+The residual heatmap of the regression tree predicts Airbnb prices based on our predictor variables. Taking a look at node 26 (listings with more than 2 bedrooms, fewer than 1.75 bathrooms, and classified as a private/shared rooms) demonstrates significant overprediction, likely inflated by luxury listings, suggesting the model struggles with high-priced variability in this category. In contrast, node 59 (listings with more than 3.25 bathrooms, 2.25 bedrooms, and is a private/shared rooms) shows underprediction, where actual prices exceed predictions, indicating the model undervalues premium listings. Nodes like 25 (more than 2 bedrooms and fewer than 1.75 bathrooms) align more closely with actual prices, reflecting better reliability in mid-range listings.
 
 
 ## Conclusions
-Our analysis of Airbnb listings data reveals that several factors can influence the price of a listing, including the number of bedrooms, bathrooms and room type. ***Using machine learning methods, we were able to capture approximately 51.46% of the variability in Airbnb listing prices. This indicates that our models performed better than simply predicting the mean price for all listings. The three variables we selected-bedrooms, room type, and bathrooms account for about half of the observed variation in listing prices, suggesting that while these factors are important, other variables such as accommodations have a significant role in determining price.  *** However, it is also important to note that as AirBnb mentions on their website, despite AirBnb fares, the final price comes down to the property owner's decision.
+Our analysis of Airbnb listings data reveals that several factors can influence the price of a listing, including the number of bedrooms, bathrooms and room type. ***Using machine learning methods, we were able to capture approximately 51.46% of the variability in Airbnb listing prices. This indicates that our models performed better than simply predicting the mean price for all listings. The three variables we selected: bedrooms, room type, and bathrooms account for about half of the observed variation in listing prices, suggesting that while these factors are important, other variables such as accommodations have a significant role in determining price.*** However, it is also important to note that as AirBnb mentions on their website, despite AirBnb fares, the final price comes down to the property owner's decision.
 
 # Limitations
-When interpreting the results of our analysis, it is important to acknowledge several limitations that may have impacted the accuracy and generalizability of the findings. First of all, the presence of many outliers, even after removing extreme cases, likely impacted the model's ability to accurately predict prices. This is especially true for high-end properties. It would be interesting to find out if these are real postings or are just scams. Additionally, multicollinearity among certain predictors like bedrooms, bathrooms and beds could complicate the interpretation of individual variables importance. While VIF indicated low severity, residual trends suggest room for improvement. Another limitation to consider are the models accuracy. ***kNN regression had limited performance using 2 out of the 3 predictor values, and the choice of k being relatively low compared, due to the computational cost of running the algorithm on such a set of data.*** The regression tree provided interpretability, but it only explained around 51.46% of the variance in prices. It is also important to take into account that different types of listings were grouped based on similarity in price, since there were limited listings for "shared rooms" and "hotel rooms" compared to the others. On the other hand, this dataset is specific to Los Angeles AirBnb listings and may not be generalizable to other cities with different dynamics. ***Our dataset only represents listings during a specific time period, and pricing patterns may vary significantly across different cities, seasons, and market conditions. The model's performance might be different in cities with different housing markets, tourist patterns, or local regulations affecting listing prices***. 
+When interpreting the results of our analysis, it is important to acknowledge several limitations that may have impacted the accuracy and generalizability of the findings. First of all, the presence of many outliers, even after removing extreme cases, likely impacted the model's ability to accurately predict prices. This is especially true for high-end properties. It would be interesting to find out if these are real postings or are just scams. Additionally, multicollinearity among certain predictors like bedrooms, bathrooms and beds could complicate the interpretation of individual variables importance. While VIF indicated low severity, residual trends suggest room for improvement. Another limitation to consider are the models accuracy. ***kNN regression had limited performance using 2 out of the 3 predictor values, and the choice of k being relatively low compared, due to the computational cost of running the algorithm on such a set of data.*** The regression tree provided interpretability, but it only explained around 51.46% of the variance in prices. It is also important to take into account that different types of listings were grouped based on similarity in price, since there were limited listings for "shared rooms" and "hotel rooms" compared to the others. On the other hand, this dataset is specific to Los Angeles AirBnb listings and may not be generalizable to other cities with different dynamics. ***Our dataset only represents listings during a specific time period, and pricing patterns may vary significantly across different cities, seasons, and market conditions. The model's used to predict prices within this data set may perform differently in cities that are not Los Angeles with different housing markets, tourist patterns, and even local regulations affecting listing prices***. 
